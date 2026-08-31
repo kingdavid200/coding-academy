@@ -6,10 +6,10 @@ assessment; scoring **80% or higher** completes the module and unlocks the next 
 Content is managed through an admin area, not by editing source.
 
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript
-- **Database:** PostgreSQL via Prisma ORM (local: docker-compose; production: Google Cloud SQL)
+- **Database:** PostgreSQL via Prisma ORM + `pg` driver adapter (local: docker-compose; production: any hosted Postgres, e.g. Neon)
 - **Styling:** Tailwind CSS v4, server-rendered syntax highlighting with Shiki
 - **Auth:** first-party email/password with server-side sessions (bcrypt hashes, httpOnly cookies)
-- **Deploy:** Firebase App Hosting — see [DEPLOY.md](DEPLOY.md)
+- **Deploy:** Vercel + Neon (or any Node host + Postgres) — see [DEPLOY.md](DEPLOY.md)
 
 ---
 
@@ -79,7 +79,7 @@ Students are created through the sign-up form.
 | ---------------- | ----------------------------------------------------------------- |
 | Frontend         | Next.js 16 App Router, React 19 Server Components, Tailwind CSS v4 |
 | Backend          | Next.js Route Handlers + Server Actions (Node runtime)             |
-| ORM / DB         | Prisma 6 + `pg` driver adapter, PostgreSQL (Cloud SQL in prod, via the Cloud SQL connector) |
+| ORM / DB         | Prisma 6 + `pg` driver adapter, PostgreSQL                         |
 | Auth             | `bcryptjs` password hashing, DB-backed sessions, httpOnly cookies  |
 | Validation       | Zod on every request body                                          |
 | Markdown / code  | `markdown-it` (HTML disabled) + Shiki (build-time highlighting)    |
@@ -256,14 +256,11 @@ Manual / scripted verification:
 
 ## 13. Environment variables
 
-| Variable                   | Where            | Notes                                                              |
-| -------------------------- | ---------------- | --------------------------------------------------------------- |
-| `DATABASE_URL`             | local + CI + build | Postgres connection string. In production it is only used by `prisma generate`; the running app uses the Cloud SQL connector. |
-| `NEXT_PUBLIC_SITE_URL`     | everywhere       | SEO / canonical / sitemap / OG / JSON-LD. Production origin, no trailing slash. |
-| `AUTH_SECRET`              | everywhere       | Session token hashing. `openssl rand -base64 48`                   |
-| `INSTANCE_CONNECTION_NAME` | production       | `PROJECT:REGION:INSTANCE` — switches `db.ts` to the Cloud SQL connector. |
-| `DB_USER` / `DB_PASSWORD` / `DB_NAME` | production | Cloud SQL credentials used by the connector.                  |
-| `CLOUD_SQL_IP_TYPE`        | production       | `PUBLIC` (default in `apphosting.yaml`) or `PRIVATE`.              |
+| Variable               | Where       | Notes                                                              |
+| ---------------------- | ----------- | --------------------------------------------------------------- |
+| `DATABASE_URL`         | everywhere  | PostgreSQL connection string (use a pooled URL in production).     |
+| `NEXT_PUBLIC_SITE_URL` | everywhere  | SEO / canonical / sitemap / OG / JSON-LD. Production origin, no trailing slash. |
+| `AUTH_SECRET`          | everywhere  | Session token hashing. `openssl rand -base64 48`                   |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME` | `db:seed` only | The admin account the seed creates. |
 
 See [`.env.example`](.env.example) for local values and [DEPLOY.md](DEPLOY.md) for production.
@@ -290,17 +287,15 @@ details used in JSON-LD and the footer — edit those there if they change.
 
 ## 15. Deployment
 
-Target is **Firebase App Hosting + Google Cloud SQL**. The full step-by-step runbook is in
-**[DEPLOY.md](DEPLOY.md)** — it covers the Blaze upgrade, creating the Cloud SQL instance,
-running migrations + seed, wiring secrets, connecting the GitHub repo, creating the
-App Hosting backend, and granting `roles/cloudsql.client`.
+GitHub Pages cannot host this — it needs a Node server and a database. The simplest
+deploy straight from a GitHub repo is **Vercel + Neon** (both free, no card). The
+step-by-step runbook is in **[DEPLOY.md](DEPLOY.md)**: push to GitHub, create a Neon
+database, run `prisma migrate deploy` + seed against it, import the repo into Vercel,
+set three environment variables, deploy.
 
-The repo is already prepared for it: `apphosting.yaml`, `.firebaserc` (→ `codestart-learn`),
-the Postgres migration, and `src/lib/db.ts` connecting through the Cloud SQL Node.js
-connector (no VPC required).
-
-Nothing about the app is Firebase-specific, so it also runs on any Node host (Render,
-Railway, Fly.io, a VM) given a `DATABASE_URL` to a Postgres database and the env vars above.
+`vercel.json` sets the build command to `prisma migrate deploy && prisma generate &&
+next build`, so schema changes ship automatically on every push. Any Node host + a
+Postgres `DATABASE_URL` works the same way (Render, Railway, Fly.io, a VM).
 
 For multi-instance deployments, replace the in-memory rate limiter
 (`src/lib/rate-limit.ts`) with a shared store (e.g. Redis).
