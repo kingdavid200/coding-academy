@@ -6,7 +6,7 @@ type BuildMetadataInput = {
   description: string;
   /** Canonical path, e.g. "/courses/python". Omit for the home page. */
   path?: string;
-  /** Set true for private / non-indexable pages (auth, dashboard, admin). */
+  /** Accepted for call-site clarity; the whole platform is noindex regardless. */
   noindex?: boolean;
   /** Path to a page-specific OG image; falls back to the site default. */
   ogImagePath?: string;
@@ -14,14 +14,14 @@ type BuildMetadataInput = {
 };
 
 /**
- * Single source of truth for page metadata. Guarantees a unique title, a
- * unique description, a canonical URL and consistent social tags on every page.
+ * Single source of truth for page metadata. The platform is private, so every
+ * page is `noindex`; this helper still gives each page a unique, well-formed
+ * title and description.
  */
 export function buildMetadata({
   title,
   description,
   path = "/",
-  noindex = false,
   ogImagePath,
   keywords,
 }: BuildMetadataInput): Metadata {
@@ -36,9 +36,7 @@ export function buildMetadata({
     description,
     keywords,
     alternates: { canonical },
-    robots: noindex
-      ? { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } }
-      : { index: true, follow: true },
+    robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
     openGraph: {
       type: "website",
       siteName: siteConfig.name,

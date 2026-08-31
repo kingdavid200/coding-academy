@@ -58,7 +58,8 @@ Students are created through the sign-up form.
 
 ## 1. What was built
 
-- Public marketing site: home, course catalogue, per-course outline, how-it-works, about, custom 404.
+- Private, account-only platform: every page requires sign-in; signed-out visitors are
+  redirected to `/login`. Only `/login`, `/signup` and a custom 404 are reachable without an account.
 - Authentication: sign-up (with language choice), sign-in, sign-out, password change, session revocation.
 - Student experience: dashboard, per-course view, module pages, readable lessons with
   syntax-highlighted code, module assessments, results with per-question explanations,
@@ -67,9 +68,9 @@ Students are created through the sign-up form.
 - Admin area: overview, student list + per-student progress, full CRUD for courses /
   modules / lessons / quizzes / questions, drag-free reordering, module-completion and
   course statistics, configurable pass mark.
-- Technical SEO: per-page metadata, canonical URLs, Open Graph + Twitter cards, JSON-LD
-  (`EducationalOrganization`, `WebSite`, `Course`, `BreadcrumbList`), `robots.txt`,
-  `sitemap.xml`, `llms.txt`, generated favicon and social image.
+- Metadata hygiene: unique, well-formed `<title>` and description per page, semantic HTML,
+  one `<h1>` per page, breadcrumbs, `EducationalOrganization` JSON-LD, favicon and social
+  image. The site is deliberately `noindex` (`robots.txt` disallows everything) since it is private.
 - Security headers / CSP, rate limiting, server-side validation everywhere.
 - Unit tests (Vitest) and end-to-end tests (Playwright).
 
@@ -187,20 +188,21 @@ existing modules) and override any single module.
 - Secrets come from environment variables; `.env` is gitignored; no credentials in source or client bundles.
 - Error responses never include stack traces, SQL, or internal paths.
 
-## 9. SEO features
+## 9. SEO / metadata
 
-- Unique `<title>` and meta description per page (`src/lib/seo.ts`), no duplicates.
-- One `<h1>` per page; semantic landmarks (`header`/`nav`/`main`/`footer`).
-- Canonical URL on every page, derived from `NEXT_PUBLIC_SITE_URL`.
-- Open Graph + Twitter card metadata; generated 1200×630 social image (`/opengraph-image`).
-- JSON-LD: `EducationalOrganization`, `WebSite`, `Course` (per course), `BreadcrumbList`.
+The platform is **private**, so it is intentionally kept out of search engines:
+
+- `robots.txt` → `Disallow: /` for all agents; `sitemap.xml` is empty; `llms.txt` states
+  there is no public content.
+- Every page sends `noindex, nofollow` (root layout + `src/lib/seo.ts`).
+
+The metadata that still matters for a private app is all in place:
+
+- Unique, well-formed `<title>` and meta description per page (`src/lib/seo.ts`), no duplicates.
+- One `<h1>` per page; semantic landmarks (`header`/`nav`/`main`/`footer`); skip link.
 - Breadcrumbs reflect real location (e.g. Dashboard → Python → Module → Lesson).
-- `robots.txt` (references the sitemap; disallows `/admin`, `/api/`, `/dashboard`,
-  `/account`, `/learn/`, `/login`, `/signup`).
-- `sitemap.xml` — public pages and course outlines only, absolute canonical URLs.
-- `llms.txt` describing the public content.
-- Auth pages and every private/admin page send `noindex`.
-- Favicon (`/icon.svg`) and web app manifest.
+- `EducationalOrganization` JSON-LD, Open Graph / Twitter tags, generated 1200×630 social
+  image, favicon (`/icon.svg`) and web app manifest.
 
 ## 10. Performance optimizations
 
@@ -210,7 +212,6 @@ existing modules) and override any single module.
 - `productionBrowserSourceMaps: false` — no JS source maps served in production.
 - `poweredByHeader: false`; images use explicit dimensions and native lazy loading.
 - Route-level code splitting is automatic (App Router); admin code never loads for students.
-- `sitemap.xml` / `llms.txt` cached for 1 hour.
 
 ## 11. Tests performed
 
@@ -230,9 +231,9 @@ Manual / scripted verification:
 - API suite covering signup, duplicate-email, weak password, unknown course, generic
   login failure, admin login, cross-role API access, IDOR on attempts, double-submit,
   tampered option ids, rate limiting, logout.
-- SEO crawl of all public pages: no duplicate titles/descriptions, canonical present,
-  single h1, OG/Twitter/JSON-LD present, correct `noindex`, valid `robots.txt` /
-  `sitemap.xml` / `llms.txt`, custom 404.
+- Privacy check: every page and the home route redirect a signed-out visitor to `/login`;
+  `robots.txt` disallows everything; every page sends `noindex`. Metadata (titles,
+  descriptions, headings, JSON-LD) verified with no duplicates.
 - Accessibility spot checks: landmarks, labelled controls, `fieldset`/`legend` groups,
   visible focus, heading order, `lang`, skip link, image alt text.
 - Lint, type-check and production build all clean.
@@ -246,8 +247,8 @@ Manual / scripted verification:
   It clears when Prisma updates that transitive dependency.
 - The CSP allows inline scripts (`'unsafe-inline'`) because the Next.js App Router runtime
   injects inline bootstrap scripts. Moving to a nonce-based CSP is possible but was not done.
-- Every page renders per-request (the header reflects the signed-in user). All pages are
-  still fully server-rendered and indexable; there is just no static HTML cache.
+- Every page renders per-request (auth is checked on each request); there is no static
+  HTML cache. Fine for the traffic this kind of app sees.
 - The Turbopack dev cache under `.next/` occasionally corrupts after an interrupted build
   ("Failed to open database … invalid digit"). Fix: `rm -rf .next && npm run dev`.
 - During content development, `npm run db:seed` deletes and recreates the three seeded
@@ -259,7 +260,7 @@ Manual / scripted verification:
 | Variable               | Where       | Notes                                                              |
 | ---------------------- | ----------- | --------------------------------------------------------------- |
 | `DATABASE_URL`         | everywhere  | PostgreSQL connection string (use a pooled URL in production).     |
-| `NEXT_PUBLIC_SITE_URL` | everywhere  | SEO / canonical / sitemap / OG / JSON-LD. Production origin, no trailing slash. |
+| `NEXT_PUBLIC_SITE_URL` | everywhere  | Canonical / OG / JSON-LD base URL. Production origin, no trailing slash. |
 | `AUTH_SECRET`          | everywhere  | Session token hashing. `openssl rand -base64 48`                   |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME` | `db:seed` only | The admin account the seed creates. |
 
@@ -274,11 +275,8 @@ The production URL lives in **one** place: `NEXT_PUBLIC_SITE_URL`.
    (no trailing slash). It is read at build time.
 3. Rebuild / redeploy. These update automatically:
    - canonical `<link>` tags — `src/lib/seo.ts`
-   - `sitemap.xml` — `src/app/sitemap.ts`
-   - `robots.txt` (`Sitemap:` + `Host:`) — `src/app/robots.ts`
    - Open Graph / Twitter URLs and the social image URL — `src/lib/seo.ts`
    - JSON-LD `url` fields — `src/components/seo/JsonLd.tsx`
-   - `llms.txt` — `src/app/llms.txt/route.ts`
 4. Nothing else references a hard-coded domain (`grep -rn "http" src/config` confirms only
    the env read and a `localhost` fallback).
 

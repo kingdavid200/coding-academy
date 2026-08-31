@@ -1,69 +1,20 @@
-import { db } from "@/lib/db";
-import { siteConfig, siteUrl, absoluteUrl } from "@/config/site";
-import { isBuildPhase } from "@/lib/build-phase";
+import { siteConfig } from "@/config/site";
 
-export const revalidate = 3600;
+export const dynamic = "force-static";
 
 /**
- * llms.txt — a plain-text summary of the site for language models.
- * Describes only publicly accessible educational content.
+ * The platform is a private, account-only application. There is no public
+ * content to describe.
  */
-async function courseSection(): Promise<string[]> {
-  if (isBuildPhase) return [];
-  try {
-    const courses = await db.course.findMany({
-      where: { published: true },
-      orderBy: { order: "asc" },
-      include: {
-        modules: {
-          where: { published: true },
-          orderBy: { order: "asc" },
-          select: { title: true },
-        },
-      },
-    });
-    return courses.flatMap((c) => [
-      "",
-      `### ${c.title}`,
-      `${c.tagline}`,
-      `URL: ${absoluteUrl(`/courses/${c.slug}`)}`,
-      `Modules: ${c.modules.map((m) => m.title).join(", ")}`,
-    ]);
-  } catch {
-    return [];
-  }
-}
-
-export async function GET() {
-  const courseLines = await courseSection();
-
+export function GET() {
   const body = [
     `# ${siteConfig.name}`,
     "",
-    `> ${siteConfig.description}`,
+    `> ${siteConfig.name} is a private, account-only learning platform.`,
+    "All courses, lessons and assessments are behind authentication and there is",
+    "no publicly accessible content.",
     "",
-    `${siteConfig.name} is a free online learning platform. Students create an account,`,
-    "choose a language, and work through ordered modules. Each module ends with an",
-    "assessment; scoring at least 80% unlocks the next module.",
-    "",
-    "## Public pages",
-    "",
-    `- Home: ${siteUrl}`,
-    `- All courses: ${absoluteUrl("/courses")}`,
-    `- How it works: ${absoluteUrl("/how-it-works")}`,
-    `- About: ${absoluteUrl("/about")}`,
-    "",
-    "## Courses",
-    ...courseLines,
-    "",
-    "## Not available to crawlers or models",
-    "",
-    "- Student dashboards, lesson content and assessments require an account.",
-    "- Admin area and internal API endpoints are private.",
-    "",
-    `## Contact`,
-    "",
-    `- ${siteConfig.organization.email}`,
+    `Contact: ${siteConfig.organization.email}`,
     "",
   ].join("\n");
 

@@ -32,6 +32,7 @@ export default defineConfig({
     env: {
       NODE_ENV: "production",
       DATABASE_URL: E2E_DATABASE_URL,
+      DIRECT_URL: E2E_DATABASE_URL,
       NEXT_PUBLIC_SITE_URL: "http://localhost:3100",
       AUTH_SECRET: "e2e-test-secret-value-not-for-production-use-only",
       SEED_ADMIN_EMAIL: "admin@codingacademy.test",

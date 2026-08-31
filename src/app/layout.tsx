@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { siteConfig } from "@/config/site";
 import { metadataBase } from "@/lib/seo";
-import { JsonLd, organizationSchema, websiteSchema } from "@/components/seo/JsonLd";
+import { JsonLd, organizationSchema } from "@/components/seo/JsonLd";
 
 export const metadata: Metadata = {
   metadataBase,
   title: {
-    default: `${siteConfig.name} — Learn to code in Java, Python and HTML`,
+    default: `${siteConfig.name}`,
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
   authors: [{ name: siteConfig.name }],
   creator: siteConfig.name,
   formatDetection: { telephone: false },
+  // Private, account-only platform — nothing should be indexed.
+  robots: { index: false, follow: false, nocache: true },
 };
 
 export const viewport: Viewport = {
@@ -27,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full">
       <body className="flex min-h-full flex-col bg-[var(--color-canvas)]">
-        <JsonLd data={[organizationSchema(), websiteSchema()]} />
+        <JsonLd data={organizationSchema()} />
         <a href="#main" className="skip-link">
           Skip to main content
         </a>

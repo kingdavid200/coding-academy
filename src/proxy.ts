@@ -3,29 +3,45 @@ import { NextResponse, type NextRequest } from "next/server";
 const COOKIE_NAME = "ca_session";
 
 /**
- * Lightweight edge gate (Next.js "proxy"). This only checks that a session
- * cookie is present and redirects when it is not — a UX and defence-in-depth
- * layer. The authoritative checks (valid session, correct role, module
- * unlocked) all run again in the route handlers and server components, which is
- * where security is actually enforced.
+ * The platform is fully private. Everything requires an account except the
+ * paths below. This is the edge/UX layer — every page and API route also
+ * re-checks the session (and role) server-side, which is where access is
+ * actually enforced.
  */
-const PROTECTED_PREFIXES = ["/dashboard", "/account", "/learn", "/admin"];
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/signup",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/manifest.webmanifest",
+  "/opengraph-image",
+  "/icon.svg",
+  "/favicon.ico",
+]);
+
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_PATHS.has(pathname)) return true;
+  // Auth endpoints must work signed-out; other API routes guard themselves and
+  // should return JSON 401s rather than an HTML redirect.
+  if (pathname.startsWith("/api/")) return true;
+  if (pathname.startsWith("/_next/")) return true;
+  return false;
+}
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const needsAuth = PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-  if (!needsAuth) return NextResponse.next();
+  if (isPublic(pathname)) return NextResponse.next();
 
   const hasCookie = Boolean(req.cookies.get(COOKIE_NAME)?.value);
   if (hasCookie) return NextResponse.next();
 
   const loginUrl = new URL("/login", req.url);
-  loginUrl.searchParams.set("next", pathname);
+  if (pathname !== "/") loginUrl.searchParams.set("next", pathname);
   return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/account/:path*", "/learn/:path*", "/admin/:path*"],
+  // Run on everything except Next internals and static asset files.
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };

@@ -149,6 +149,20 @@ test.describe("authorization", () => {
     expect((await request.post("/api/lessons/abc/complete", { data: {} })).status()).toBe(401);
   });
 
+  test("the whole site is private — every page redirects a signed-out visitor to login", async ({
+    page,
+  }) => {
+    for (const path of ["/", "/courses", "/courses/python", "/how-it-works", "/about", "/dashboard"]) {
+      await page.goto(path);
+      await page.waitForURL("**/login**");
+    }
+    // The auth pages themselves stay reachable.
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await page.goto("/signup");
+    await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  });
+
   test("admin can sign in and see the dashboard", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email address").fill("admin@codingacademy.test");

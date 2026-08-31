@@ -1,11 +1,13 @@
+import { requirePageUser } from "@/lib/auth";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 
-// The header reflects the signed-in user on every page, so nothing here can be
-// static HTML. Rendering per-request also keeps the build free of DB access.
+// The whole platform is private: every page under (site) requires an account.
+// Only /login and /signup (the (auth) group) are reachable signed-out.
 export const dynamic = "force-dynamic";
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  await requirePageUser();
   return (
     <>
       <SiteHeader />

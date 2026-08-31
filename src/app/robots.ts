@@ -1,17 +1,10 @@
 import type { MetadataRoute } from "next";
-import { absoluteUrl, siteUrl } from "@/config/site";
 
+/**
+ * The platform is private — nothing should be crawled or indexed.
+ */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [
-      {
-        userAgent: "*",
-        allow: "/",
-        // Private application areas — never indexed.
-        disallow: ["/admin", "/api/", "/dashboard", "/account", "/learn/", "/login", "/signup"],
-      },
-    ],
-    sitemap: absoluteUrl("/sitemap.xml"),
-    host: siteUrl,
+    rules: [{ userAgent: "*", disallow: "/" }],
   };
 }
