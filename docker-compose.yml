@@ -1,0 +1,29 @@
+# Local PostgreSQL for development and E2E tests.
+#   docker compose up -d
+# Then in .env:
+#   DATABASE_URL="postgresql://codestart:codestart@localhost:5432/codestart?schema=public"
+#
+# If you prefer a native install (Homebrew `postgresql@16`, Postgres.app, etc.),
+# skip this file and point DATABASE_URL at that instance instead.
+
+services:
+  db:
+    image: postgres:16
+    container_name: codestart-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: codestart
+      POSTGRES_PASSWORD: codestart
+      POSTGRES_DB: codestart
+    ports:
+      - "5432:5432"
+    volumes:
+      - codestart_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codestart -d codestart"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  codestart_pgdata:

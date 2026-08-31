@@ -1,0 +1,274 @@
+// Coding Academy data model.
+//
+// PostgreSQL in every environment. Local development runs Postgres via
+// docker-compose (see docker-compose.yml); production is Google Cloud SQL for
+// PostgreSQL behind Firebase App Hosting. `DATABASE_URL` selects the database.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+/// A registered person. `role` is the single source of truth for authorization.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+
+  /// The course the student is currently studying (their active learning path).
+  activeCourseId String?
+  activeCourse   Course? @relation("ActiveCourse", fields: [activeCourseId], references: [id], onDelete: SetNull)
+
+  sessions       Session[]
+  enrollments    Enrollment[]
+  moduleProgress ModuleProgress[]
+  lessonProgress LessonProgress[]
+  quizAttempts   QuizAttempt[]
+
+  @@index([role])
+}
+
+/// Server-side session. The cookie only carries the opaque `token`; everything
+/// else is looked up here so sessions can be revoked.
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  userAgent String?
+  ip        String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// A learning path for one programming language.
+model Course {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  language    String
+  tagline     String
+  description String
+  /// JSON array of strings — "what you'll learn" bullets for the course page.
+  outcomes    String   @default("[]")
+  icon        String   @default("code")
+  accent      String   @default("#2563eb")
+  order       Int      @default(0)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modules     Module[]
+  enrollments Enrollment[]
+  activeUsers User[]       @relation("ActiveCourse")
+
+  @@index([published, order])
+}
+
+/// An ordered unit within a course. Unlocks only when the previous module is
+/// passed at or above `passingScore`.
+model Module {
+  id           String   @id @default(cuid())
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  slug         String
+  title        String
+  summary      String
+  /// JSON array of learning-objective strings.
+  objectives   String   @default("[]")
+  order        Int
+  /// Minimum quiz percentage required to complete this module and unlock the next.
+  passingScore Int      @default(80)
+  published    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lessons        Lesson[]
+  quiz           Quiz?
+  moduleProgress ModuleProgress[]
+
+  @@unique([courseId, slug])
+  @@index([courseId, order])
+}
+
+/// A single readable lesson. `content` is Markdown (fenced code blocks are
+/// syntax-highlighted at render time).
+model Lesson {
+  id               String   @id @default(cuid())
+  moduleId         String
+  module           Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  slug             String
+  title            String
+  /// Short summary shown in lists and used as the meta description.
+  summary          String
+  /// JSON array of objective strings specific to this lesson.
+  objectives       String   @default("[]")
+  content          String
+  order            Int
+  estimatedMinutes Int      @default(8)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  progress LessonProgress[]
+
+  @@unique([moduleId, slug])
+  @@index([moduleId, order])
+}
+
+/// One assessment per module.
+model Quiz {
+  id          String   @id @default(cuid())
+  moduleId    String   @unique
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  prompt      String
+  /// Shown after submission to explain the correct answer.
+  explanation String
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  options        AnswerOption[]
+  attemptAnswers AttemptAnswer[]
+
+  @@index([quizId, order])
+}
+
+model AnswerOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int
+
+  attemptAnswers AttemptAnswer[]
+
+  @@index([questionId])
+}
+
+/// A student's participation in a course.
+model Enrollment {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+}
+
+enum ModuleState {
+  LOCKED
+  AVAILABLE
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// Per-student, per-module progress. `state` is written by the server whenever
+/// a quiz is submitted or a lesson is completed; it is never trusted from the client.
+model ModuleProgress {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleId      String
+  module        Module      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  state         ModuleState @default(AVAILABLE)
+  bestScore     Int         @default(0)
+  attemptsCount Int         @default(0)
+  passed        Boolean     @default(false)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  lastActiveAt  DateTime    @default(now())
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+/// One recorded quiz submission. `percentage` and `passed` are computed and
+/// stored server-side from the persisted answer key.
+model QuizAttempt {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId       String
+  quiz         Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score        Int
+  total        Int
+  percentage   Int
+  passed       Boolean
+  passingScore Int
+  startedAt    DateTime  @default(now())
+  submittedAt  DateTime?
+
+  answers AttemptAnswer[]
+
+  @@index([userId])
+  @@index([quizId])
+}
+
+model AttemptAnswer {
+  id               String        @id @default(cuid())
+  attemptId        String
+  attempt          QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?
+  selectedOption   AnswerOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  correct          Boolean
+
+  @@unique([attemptId, questionId])
+}
+
+/// Single-row table of platform-wide settings the admin can edit.
+model AppSetting {
+  id                  Int      @id @default(1)
+  defaultPassingScore Int      @default(80)
+  updatedAt           DateTime @updatedAt
+}

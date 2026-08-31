@@ -1,0 +1,52 @@
+# Firebase App Hosting configuration.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# The app connects to Cloud SQL through the Cloud SQL Node.js Connector
+# (see src/lib/db.ts), so no VPC, private IP or allow-listed IPs are needed —
+# just grant the App Hosting compute service account roles/cloudsql.client.
+# Full walkthrough: DEPLOY.md
+
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+
+env:
+  # ---- Public config -------------------------------------------------
+  # The backend's own origin. Set to the App Hosting URL (or a custom domain)
+  # after the first deploy, then redeploy. No trailing slash.
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://REPLACE-WITH-YOUR-DOMAIN
+    availability: [BUILD, RUNTIME]
+
+  # ---- Cloud SQL (via the connector) --------------------------------
+  # PROJECT_ID:REGION:INSTANCE_ID, e.g. codestart-learn:europe-west1:codestart-db
+  - variable: INSTANCE_CONNECTION_NAME
+    value: REPLACE:REGION:codestart-db
+    availability: [RUNTIME]
+  - variable: CLOUD_SQL_IP_TYPE
+    value: PUBLIC
+    availability: [RUNTIME]
+  - variable: DB_NAME
+    value: codestart
+    availability: [RUNTIME]
+  - variable: DB_USER
+    value: codestart
+    availability: [RUNTIME]
+
+  # ---- Secrets (Cloud Secret Manager) ------------------------------
+  # firebase apphosting:secrets:set DB_PASSWORD --project codestart-learn
+  # firebase apphosting:secrets:set AUTH_SECRET --project codestart-learn
+  - variable: DB_PASSWORD
+    secret: DB_PASSWORD
+  - variable: AUTH_SECRET
+    secret: AUTH_SECRET
+
+  # DATABASE_URL is only needed by `prisma generate` during the build (it never
+  # connects). A dummy value keeps the Prisma CLI happy; runtime uses the
+  # connector above.
+  - variable: DATABASE_URL
+    value: postgresql://build:build@localhost:5432/build?schema=public
+    availability: [BUILD]
