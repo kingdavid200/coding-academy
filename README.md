@@ -293,9 +293,9 @@ step-by-step runbook is in **[DEPLOY.md](DEPLOY.md)**: push to GitHub, create a 
 database, run `prisma migrate deploy` + seed against it, import the repo into Vercel,
 set three environment variables, deploy.
 
-`vercel.json` sets the build command to `prisma migrate deploy && prisma generate &&
-next build`, so schema changes ship automatically on every push. Any Node host + a
-Postgres `DATABASE_URL` works the same way (Render, Railway, Fly.io, a VM).
+`vercel.json` sets the build command to `prisma generate && next build`; migrations are
+applied manually with `prisma migrate deploy` against the unpooled connection string.
+Any Node host + a Postgres `DATABASE_URL` works the same way (Render, Railway, Fly.io, a VM).
 
 For multi-instance deployments, replace the in-memory rate limiter
 (`src/lib/rate-limit.ts`) with a shared store (e.g. Redis).

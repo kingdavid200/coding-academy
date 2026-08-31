@@ -41,8 +41,10 @@ DATABASE_URL="<neon pooled string>" \
   npx tsx prisma/seed.ts
 ```
 
-(Vercel also runs `prisma migrate deploy` on every build — see `vercel.json` — so
-new migrations apply automatically. The seed is a one-off.)
+Migrations are **not** run during the Vercel build (Neon's serverless Postgres
+times out on Prisma's migration advisory lock). Run `prisma migrate deploy`
+yourself against `DIRECT_URL` whenever you add a migration, using the command
+above. The seed is a one-off.
 
 ## 4. Import the repo into Vercel
 
@@ -80,8 +82,9 @@ Then set `NEXT_PUBLIC_SITE_URL` to `https://yourdomain.com` and redeploy.
 ## Ongoing
 
 - Every push to `main` triggers a build + deploy; pull requests get preview URLs.
-- New DB migration: `npm run db:migrate` locally, commit it, push — Vercel's build
-  runs `prisma migrate deploy` against Neon before building.
+- New DB migration: run `npm run db:migrate` locally, commit it, then apply it to
+  Neon with `DATABASE_URL="<direct/unpooled string>" npx prisma migrate deploy`
+  (the Vercel build does not run migrations — Neon times out on the migration lock).
 - Rollbacks and logs: the Vercel dashboard.
 - The in-memory rate limiter (`src/lib/rate-limit.ts`) is per-instance. For heavy
   traffic across many serverless instances, swap it for Upstash Redis.
